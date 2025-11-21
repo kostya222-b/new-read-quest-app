@@ -1,14 +1,19 @@
 import os
 import uvicorn
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+
+
 tags_metadata = [
     {
         'name': 'SEARCH ANSWERS',
         'description': 'API для поиска правильных ответов.',
     }
 ]
+
 origin_endpoint = ['https://iomqt-vo.edu.rosminzdrav.ru', 'https://iomqt-spo.edu.rosminzdrav.ru', 'https://iomqt-nmd.edu.rosminzdrav.ru']
+
 app = FastAPI(
     root_path="/api",
     title='API for SEARCH ANSWERS',
@@ -16,6 +21,7 @@ app = FastAPI(
     version='0.1.0',
     openapi_tags=tags_metadata,
 )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origin_endpoint,
@@ -23,6 +29,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 @app.get('/test')
 async def test(
         quest: str = None
@@ -60,6 +68,7 @@ async def test(
                             true_answers_list.append(cleaned_i)
             else:
                 raise HTTPException(status_code=404, detail='Нет такого вопроса')
+
         if len(true_answers_list) == 0:
             quest = quest.replace('a', 'а')
             quest = quest.replace('o', 'о')
@@ -88,6 +97,7 @@ async def test(
                     # return true_answers_list
                 else:
                     raise HTTPException(status_code=404, detail='Нет такого вопроса')
+
         if len(true_answers_list) == 0:
             quest = quest.replace('а', 'a')
             quest = quest.replace('о', 'o')
@@ -116,14 +126,17 @@ async def test(
                     # return true_answers_list
                 else:
                     raise HTTPException(status_code=404, detail='Нет такого вопроса')
+
         new_true_answers_list = []
         for i in true_answers_list:
             new_i = i.replace('а', 'a')
             new_i = new_i.replace('о', 'o')
             new_true_answers_list.append(new_i)
+
             new_i = i.replace('a', 'а')
             new_i = new_i.replace('o', 'о')
             new_true_answers_list.append(new_i)
         return true_answers_list + new_true_answers_list
     else:
         raise HTTPException(status_code=404, detail='Нет такого вопроса')
+
