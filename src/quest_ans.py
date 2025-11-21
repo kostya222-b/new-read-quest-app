@@ -1,21 +1,14 @@
 import os
-import re
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
 tags_metadata = [
     {
         'name': 'SEARCH ANSWERS',
         'description': 'API для поиска правильных ответов.',
     }
 ]
-
-origin_endpoint = [
-    'https://iomqt-vo.edu.rosminzdrav.ru',
-    'https://iomqt-spo.edu.rosminzdrav.ru',
-    'https://iomqt-nmd.edu.rosminzdrav.ru'
-]
-
+origin_endpoint = ['https://iomqt-vo.edu.rosminzdrav.ru', 'https://iomqt-spo.edu.rosminzdrav.ru', 'https://iomqt-nmd.edu.rosminzdrav.ru']
 app = FastAPI(
     root_path="/api",
     title='API for SEARCH ANSWERS',
@@ -23,7 +16,6 @@ app = FastAPI(
     version='0.1.0',
     openapi_tags=tags_metadata,
 )
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origin_endpoint,
@@ -31,86 +23,107 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Загружаем текст один раз при старте приложения
-this_folder = os.getcwd()
-file_path = f'{this_folder}/src/myans.txt'
-
-try:
-    with open(file_path, 'r', encoding="utf-8") as f:
-        TEXT = f.read()
-except FileNotFoundError:
-    raise RuntimeError(f"Файл {file_path} не найден!")
-
-def clean_answer(answer: str) -> str:
-    """Очищает строку ответа от лишних символов."""
-    answer = answer.strip()
-    if answer[-1] in ('+', ';', '.'):
-        answer = answer[:-1].strip()
-    if answer.startswith('~'):
-        answer = answer[1:].strip()
-    return answer
-
-def find_answers(quest: str) -> list[str]:
-    """Ищет ответы на вопрос в тексте."""
-    quest = quest + '\n'
-    true_answers_list = []
-    beg_beg = 0
-
-    for _ in range(TEXT.count(quest)):
-        begin = TEXT.find(quest, beg_beg)
-        if begin == -1:
-            break
-        beg_beg = begin + len(quest)
-
-        # Ищем номер вопроса
-        num_quest_line = TEXT.rfind('\n', 0, begin)
-        num_quest = TEXT[num_quest_line:begin].strip()
-        num_quest = num_quest.replace('.', '') if '.' in num_quest else num_quest
-
-        # Ищем конец блока с ответами
-        end1 = TEXT.find('\n\n', begin + len(quest))
-        end2 = TEXT.find(f'{int(num_quest) + 1}. ', begin + len(quest))
-        end = min(filter(lambda val: val > 0, [end1, end2]))
-
-        # Получаем блок с ответами
-        answers_block = TEXT[begin + len(quest):end].strip()
-        answers_list = answers_block.split('\n')
-
-        for answer in answers_list:
-            if answer.startswith('~') or answer.endswith('+'):
-                if answer.endswith('+'):
-                    cleaned_answer = clean_answer(answer)
-                    true_answers_list.append(cleaned_answer)
-
-    return true_answers_list
-
 @app.get('/test')
-async def test(quest: str = None):
-    if not quest:
+async def test(
+        quest: str = None
+):
+    # quest = quest.replace('a', 'а')
+    # quest = quest.replace('o', 'о')
+    this_folder = os.getcwd()
+    beg_beg = 0
+    if quest:
+        quest += '\n'
+        true_answers_list = []
+        with open(f'{this_folder}/src/myans.txt', 'r', encoding="utf-8") as f:
+            text = f.read()
+        for c in range(text.count(quest)):
+            begin = text.find(quest, beg_beg)
+            beg_beg = begin + len(quest)
+            if begin != -1:
+                num_quest = text[text.rfind('\n', 0, begin):begin-2].strip()
+                num_quest = num_quest.replace('.', '') if '.' in num_quest else num_quest
+                end1 = text.find('\n\n', begin+len(quest))
+                end2 = text.find(f'{int(num_quest) + 1}. ', begin+len(quest))
+                end = min(filter(lambda val: val > 0, [end1, end2]))
+                answers = text[begin+len(quest):end].strip()
+                answers_list = answers.split('\n')
+                for i in answers_list:
+                    if i[0] == '~' or i[-1] == '+':
+                        if i[-1] == '+':
+                            cleaned_i = i[0:-1]
+                            cleaned_i = cleaned_i[0:-1] if cleaned_i[-1] == ';' else cleaned_i
+                            cleaned_i = cleaned_i[0:-1] if cleaned_i[-1] == '.' else cleaned_i
+                            cleaned_i = cleaned_i[1:] if cleaned_i[0] == '~' else cleaned_i
+                            cleaned_i = cleaned_i[2:].strip()
+                            # cleaned_i = cleaned_i.replace('а', 'a')
+                            # cleaned_i = cleaned_i.replace('о', 'o')
+                            true_answers_list.append(cleaned_i)
+            else:
+                raise HTTPException(status_code=404, detail='Нет такого вопроса')
+        if len(true_answers_list) == 0:
+            quest = quest.replace('a', 'а')
+            quest = quest.replace('o', 'о')
+            for c in range(text.count(quest)):
+                begin = text.find(quest, beg_beg)
+                beg_beg = begin + len(quest)
+                if begin != -1:
+                    num_quest = text[text.rfind('\n', 0, begin):begin - 2].strip()
+                    num_quest = num_quest.replace('.', '') if '.' in num_quest else num_quest
+                    end1 = text.find('\n\n', begin + len(quest))
+                    end2 = text.find(f'{int(num_quest) + 1}. ', begin + len(quest))
+                    end = min(filter(lambda val: val > 0, [end1, end2]))
+                    answers = text[begin + len(quest):end].strip()
+                    answers_list = answers.split('\n')
+                    for i in answers_list:
+                        if i[0] == '~' or i[-1] == '+':
+                            if i[-1] == '+':
+                                cleaned_i = i[0:-1]
+                                cleaned_i = cleaned_i[0:-1] if cleaned_i[-1] == ';' else cleaned_i
+                                cleaned_i = cleaned_i[0:-1] if cleaned_i[-1] == '.' else cleaned_i
+                                cleaned_i = cleaned_i[1:] if cleaned_i[0] == '~' else cleaned_i
+                                cleaned_i = cleaned_i[2:].strip()
+                                # cleaned_i = cleaned_i.replace('а', 'a')
+                                # cleaned_i = cleaned_i.replace('о', 'o')
+                                true_answers_list.append(cleaned_i)
+                    # return true_answers_list
+                else:
+                    raise HTTPException(status_code=404, detail='Нет такого вопроса')
+        if len(true_answers_list) == 0:
+            quest = quest.replace('а', 'a')
+            quest = quest.replace('о', 'o')
+            for c in range(text.count(quest)):
+                begin = text.find(quest, beg_beg)
+                beg_beg = begin + len(quest)
+                if begin != -1:
+                    num_quest = text[text.rfind('\n', 0, begin):begin - 2].strip()
+                    num_quest = num_quest.replace('.', '') if '.' in num_quest else num_quest
+                    end1 = text.find('\n\n', begin + len(quest))
+                    end2 = text.find(f'{int(num_quest) + 1}. ', begin + len(quest))
+                    end = min(filter(lambda val: val > 0, [end1, end2]))
+                    answers = text[begin + len(quest):end].strip()
+                    answers_list = answers.split('\n')
+                    for i in answers_list:
+                        if i[0] == '~' or i[-1] == '+':
+                            if i[-1] == '+':
+                                cleaned_i = i[0:-1]
+                                cleaned_i = cleaned_i[0:-1] if cleaned_i[-1] == ';' else cleaned_i
+                                cleaned_i = cleaned_i[0:-1] if cleaned_i[-1] == '.' else cleaned_i
+                                cleaned_i = cleaned_i[1:] if cleaned_i[0] == '~' else cleaned_i
+                                cleaned_i = cleaned_i[2:].strip()
+                                # cleaned_i = cleaned_i.replace('а', 'a')
+                                # cleaned_i = cleaned_i.replace('о', 'o')
+                                true_answers_list.append(cleaned_i)
+                    # return true_answers_list
+                else:
+                    raise HTTPException(status_code=404, detail='Нет такого вопроса')
+        new_true_answers_list = []
+        for i in true_answers_list:
+            new_i = i.replace('а', 'a')
+            new_i = new_i.replace('о', 'o')
+            new_true_answers_list.append(new_i)
+            new_i = i.replace('a', 'а')
+            new_i = new_i.replace('o', 'о')
+            new_true_answers_list.append(new_i)
+        return true_answers_list + new_true_answers_list
+    else:
         raise HTTPException(status_code=404, detail='Нет такого вопроса')
-
-    # Ищем ответы для оригинального запроса
-    true_answers_list = find_answers(quest)
-
-    # Если не найдено, пробуем с заменой символов
-    if not true_answers_list:
-        quest_variants = [
-            quest.replace('a', 'а').replace('o', 'о'),
-            quest.replace('а', 'a').replace('о', 'o')
-        ]
-        for variant in quest_variants:
-            true_answers_list = find_answers(variant)
-            if true_answers_list:
-                break
-
-    if not true_answers_list:
-        raise HTTPException(status_code=404, detail='Нет такого вопроса')
-
-    # Возвращаем оригинальные и варианты ответов
-    result = true_answers_list.copy()
-    for answer in true_answers_list:
-        result.append(answer.replace('a', 'а').replace('o', 'о'))
-        result.append(answer.replace('а', 'a').replace('о', 'o'))
-
-    return result
