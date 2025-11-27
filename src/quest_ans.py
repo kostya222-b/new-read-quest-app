@@ -1,5 +1,4 @@
 import os
-import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -58,18 +57,18 @@ def normalize_text(text: str) -> list[str]:
         ('„', '«'),
     ]
 
-    # Замены для тире (сначала с пробелами, потом без)
+    # Замены для тире (сначала убираем пробелы, затем заменяем на стандартное тире)
     dash_replacements = [
-        (' - ', '—'),  # короткое тире с пробелами
-        (' – ', '—'),  # среднее тире с пробелами
-        ('-', '—'),    # короткое тире без пробелов
-        ('–', '—'),    # среднее тире без пробелов
+        (' - ', '-'),  # убираем пробелы вокруг короткого тире
+        (' – ', '-'),  # убираем пробелы вокруг длинного тире
+        ('-', '—'),    # заменяем короткое тире на длинное
+        ('–', '—'),    # заменяем среднее тире на длинное
     ]
 
     # Применяем замены
     normalized_texts = [text]
 
-    # Замены для тире (сначала с пробелами, потом без)
+    # Замены для тире
     for old, new in dash_replacements:
         normalized_texts.append(normalized_texts[-1].replace(old, new))
 
