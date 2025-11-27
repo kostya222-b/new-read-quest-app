@@ -32,9 +32,7 @@ app.add_middleware(
 )
 
 def normalize_text(text: str) -> list[str]:
-    """Нормализует текст: приводит к нижнему регистру, убирает лишние пробелы, заменяет кириллицу на латиницу и наоборот, кавычки и тире."""
-    text = text.strip().lower().replace('\n', ' ').replace('\r', ' ')
-
+    """Нормализует текст: заменяет кириллицу на латиницу и наоборот, кавычки и тире (включая пробелы по краям)."""
     # Замены для кириллических и латинских букв
     cyrillic_to_latin = {
         'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
@@ -48,6 +46,7 @@ def normalize_text(text: str) -> list[str]:
         'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Shch',
         'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya',
     }
+
     latin_to_cyrillic = {v: k for k, v in cyrillic_to_latin.items()}
 
     # Замены для кавычек
@@ -58,7 +57,7 @@ def normalize_text(text: str) -> list[str]:
         ('„', '«'),
     ]
 
-    # Замены для тире
+    # Замены для тире (сначала убираем пробелы, затем заменяем на стандартное тире)
     dash_replacements = [
         (' - ', '-'),  # убираем пробелы вокруг короткого тире
         (' – ', '-'),  # убираем пробелы вокруг длинного тире
@@ -89,64 +88,40 @@ def normalize_text(text: str) -> list[str]:
 
 @app.get('/test')
 async def test(quest: str = None):
-    if not quest:
-        raise HTTPException(status_code=400, detail='Запрос не может быть пустым')
-
     this_folder = os.getcwd()
-    quest = quest.strip() + '\n'
-
-    try:
-        with open(f'{this_folder}/src/myans.txt', 'r', encoding="utf-8-sig") as f:
-            text = f.read().replace('\n', ' ').replace('\r', ' ')
-    except FileNotFoundError:
-        raise HTTPException(status_code=500, detail='Файл с ответами не найден')
-
-    # print(f"Оригинальный запрос: {quest}")
-    normalized_quests = normalize_text(quest)
-    # print(f"Нормализованные варианты: {normalized_quests}")
-
-    true_answers_list = []
     beg_beg = 0
-
-    for normalized_quest in normalized_quests:
-        # print(f"Ищем нормализованный вариант: {normalized_quest}")
-        while True:
-            begin = text.find(normalized_quest, beg_beg)
-            if begin == -1:
-                break
-            beg_beg = begin + len(normalized_quest)
-            # print(f"Найденный индекс: {begin}")
-            # print(f"Текст вокруг найденного индекса: {text[begin-50:begin+len(normalized_quest)+50]}")
-
-            num_quest_part = text[text.rfind(' ', 0, begin):begin].strip()
-            num_quest = num_quest_part.replace('.', '').strip()
-            if not num_quest.isdigit():
-                continue
-
-            end1 = text.find('\n\n', begin + len(normalized_quest))
-            end2 = text.find(f'{int(num_quest) + 1}. ', begin + len(normalized_quest))
-            end = min(filter(lambda val: val > 0, [end1, end2])) if end1 > 0 and end2 > 0 else max(end1, end2)
-            if end == -1:
-                end = len(text)
-
-            answers = text[begin + len(normalized_quest):end].strip()
-            answers_list = [a.strip() for a in answers.split('\n') if a.strip()]
-            # print(f"Найденные строки с ответами: {answers_list}")
-
-            for answer in answers_list:
-                if answer.startswith('~') or answer.endswith('+'):
-                    cleaned_answer = answer.strip()
-                    if cleaned_answer.endswith('+'):
-                        cleaned_answer = cleaned_answer[:-1].strip()
-                        if cleaned_answer.endswith(';'):
-                            cleaned_answer = cleaned_answer[:-1].strip()
-                        if cleaned_answer.endswith('.'):
-                            cleaned_answer = cleaned_answer[:-1].strip()
-                        if cleaned_answer.startswith('~'):
-                            cleaned_answer = cleaned_answer[1:].strip()
-                    true_answers_list.append(cleaned_answer)
-
-    if not true_answers_list:
+    if quest:
+        quest += '\n'
+        true_answers_list = []
+        with open(f'{this_folder}/src/myans.txt', 'r', encoding="utf-8") as f:
+            text = f.read()
+        # Нормализуем запрос
+        normalized_quests = normalize_text(quest)
+        for normalized_quest in normalized_quests:
+            for c in range(text.count(normalized_quest)):
+                begin = text.find(normalized_quest, beg_beg)
+                beg_beg = begin + len(normalized_quest)
+                if begin != -1:
+                    num_quest = text[text.rfind('\n', 0, begin):begin-2].strip()
+                    num_quest = num_quest.replace('.', '') if '.' in num_quest else num_quest
+                    end1 = text.find('\n\n', begin+len(normalized_quest))
+                    end2 = text.find(f'{int(num_quest) + 1}. ', begin+len(normalized_quest))
+                    end = min(filter(lambda val: val > 0, [end1, end2]))
+                    answers = text[begin+len(normalized_quest):end].strip()
+                    answers_list = answers.split('\n')
+                    for i in answers_list:
+                        if i[0] == '~' or i[-1] == '+':
+                            if i[-1] == '+':
+                                cleaned_i = i[0:-1]
+                                cleaned_i = cleaned_i[0:-1] if cleaned_i[-1] == ';' else cleaned_i
+                                cleaned_i = cleaned_i[0:-1] if cleaned_i[-1] == '.' else cleaned_i
+                                cleaned_i = cleaned_i[1:] if cleaned_i[0] == '~' else cleaned_i
+                                cleaned_i = cleaned_i[2:].strip()
+                                true_answers_list.append(cleaned_i)
+                else:
+                    continue
+        if not true_answers_list:
+            raise HTTPException(status_code=404, detail='Нет такого вопроса')
+        return true_answers_list
+    else:
         raise HTTPException(status_code=404, detail='Нет такого вопроса')
-
-    return true_answers_list
