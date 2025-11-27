@@ -58,7 +58,7 @@ def normalize_text(text: str) -> list[str]:
         ('„', '«'),
     ]
 
-    # Замены для тире (включая пробелы по краям)
+    # Замены для тире (сначала с пробелами, потом без)
     dash_replacements = [
         (' - ', '—'),  # короткое тире с пробелами
         (' – ', '—'),  # среднее тире с пробелами
@@ -69,20 +69,20 @@ def normalize_text(text: str) -> list[str]:
     # Применяем замены
     normalized_texts = [text]
 
+    # Замены для тире (сначала с пробелами, потом без)
+    for old, new in dash_replacements:
+        normalized_texts.append(normalized_texts[-1].replace(old, new))
+
     # Замены для кириллических букв на латинские
-    cyrillic_text = ''.join([cyrillic_to_latin.get(c, c) for c in text])
+    cyrillic_text = ''.join([cyrillic_to_latin.get(c, c) for c in normalized_texts[-1]])
     normalized_texts.append(cyrillic_text)
 
     # Замены для латинских букв на кириллические
-    latin_text = ''.join([latin_to_cyrillic.get(c.lower(), c) for c in text])
+    latin_text = ''.join([latin_to_cyrillic.get(c.lower(), c) for c in normalized_texts[-1]])
     normalized_texts.append(latin_text)
 
     # Замены для кавычек
     for old, new in quote_replacements:
-        normalized_texts.append(normalized_texts[-1].replace(old, new))
-
-    # Замены для тире
-    for old, new in dash_replacements:
         normalized_texts.append(normalized_texts[-1].replace(old, new))
 
     return normalized_texts
